@@ -1,7 +1,11 @@
 # compiled output
 /dist
 **/node_modules
+**/mongo
+**/postgres
 /build
+
+**/.env
 
 # Logs
 logs
