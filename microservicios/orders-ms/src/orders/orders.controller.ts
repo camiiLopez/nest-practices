@@ -4,8 +4,6 @@ import { MessagePattern, Payload } from "@nestjs/microservices";
 import { CreateOrderDto } from "./dto/create-order.dto";
 import { OrderStatus } from "./enums/order-status.enum";
 import { OrderPaginationDto } from "./dto/order-pagination.dto";
-import { log } from "console";
-
 
 @Controller()
 export class OrdersController {

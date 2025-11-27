@@ -4,21 +4,32 @@ import { Observable, throwError } from "rxjs";
 import { json } from "stream/consumers";
 
 @Catch(RpcException)
-export class RpcCustomExceptionFilter implements ExceptionFilter{
-    catch(exception: RpcException, host: ArgumentsHost)  {
+export class RpcCustomExceptionFilter implements ExceptionFilter {
+    catch(exception: RpcException, host: ArgumentsHost) {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse();
 
         const rpcError = exception.getError();
 
-        if(typeof rpcError === 'object' && 'status' in rpcError && 'message' in rpcError){
-            const status = rpcError.status;
-            return response.status(status).json(rpcError);
+        if (typeof rpcError === 'object' && rpcError !== null) {
+            const status =
+                Number(
+                    rpcError['statusCode'] ??
+                    rpcError['status'] ??
+                    rpcError['code']
+                ) || 500;
 
+            return response.status(status).json({
+                statusCode: status,
+                message: rpcError['message'] ?? 'Unexpected RPC error',
+                error: rpcError['error'] ?? undefined,
+            });
         }
-        response.status(400).json({
-            status: 400,
-            message: rpcError
-        })
+        
+        return response.status(500).json({
+            statusCode: 500,
+            message: rpcError,
+            error: 'Internal RPC error',
+        });
     }
 }

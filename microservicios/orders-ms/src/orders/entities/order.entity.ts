@@ -1,18 +1,19 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { OrderStatus } from "../enums/order-status.enum";
+import { OrderItem } from "./order-item";
 
-@Entity()
+@Entity({ name: 'order'})
 export class Order {
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column('float')
-    totalAmount: number
+  @Column('float')
+  totalAmount: number
 
-    @Column('int')
-    totalItems: number;
+  @Column('int')
+  totalItems: number;
 
-    @Column({
+  @Column({
     type: 'enum',
     enum: OrderStatus,
     default: OrderStatus.PENDING,
@@ -34,4 +35,10 @@ export class Order {
     onUpdate: 'CURRENT_TIMESTAMP',
   })
   updatedAt: Date;
+
+  @OneToMany(
+    () => OrderItem,
+    orderItem => orderItem.order,
+    { cascade: true})
+  items: OrderItem[]
 }
