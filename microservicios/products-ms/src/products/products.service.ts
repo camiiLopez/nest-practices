@@ -1,52 +1,54 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { RpcException } from '@nestjs/microservices';
-import { error } from 'console';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { Product } from './entities/product.entity';
 
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger('ProductsService')
 
-  constructor(private prisma: PrismaService) {
-    this.logger.log('Database connected')
+  constructor(
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>
+  ) {
   }
 
-  create(createProductDto: CreateProductDto) {
-    return this.prisma.product.create({
-      data: createProductDto
-    })
+  async create(createProductDto: CreateProductDto) {
+    const product = await this.productRepository.create(createProductDto);
+    return this.productRepository.save(product);
   }
 
   async findAll(paginationDto: PaginationDto) {
-    const { page, limit } = paginationDto;
+    const { page = 1, limit = 10 } = paginationDto;
 
-    const totalPages = await this.prisma.product.count({ where: { available: true }});
-    const lastPage = Math.ceil(totalPages / limit!);
+    const [data, total] = await this.productRepository.findAndCount({
+      where: { available: true },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const lastPage = Math.ceil(total / limit);
 
     return {
-      data: await this.prisma.product.findMany({
-        skip: (page! - 1) * limit!,
-        take: limit,
-        where: { available:  true }
-      }),
-      meta: {
-        total: totalPages,
-        page: page,
-        lastPage: lastPage
-      }
-    }
+      data,
+      meta: { total, page, lastPage },
+    };
   }
 
   async findOne(id: number) {
-    const product = await this.prisma.product.findFirst({
-      where: { id: id, available: true }
-    });
+    const product = await this.productRepository.findOne({
+      where: {
+        id: id,
+        available: true
+      }
+    })
 
-    if (!product) throw new RpcException({ 
-      message: `Product with ID ${id} not found`, 
+    if (!product) throw new RpcException({
+      message: `Product with ID ${id} not found`,
       statusCode: HttpStatus.BAD_REQUEST,
       error: "Bad request"
     });
@@ -55,50 +57,40 @@ export class ProductsService {
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
-    const { id: __, ...data} = updateProductDto;
+    const { id: __, ...data } = updateProductDto;
 
     await this.findOne(id);
 
-    return this.prisma.product.update({
-      where: { id: id },
-      data: data
-    })
+    return this.productRepository.update({ id: id }, updateProductDto);
   }
 
-  async hardRemove(id: number){
+  async hardRemove(id: number) {
     await this.findOne(id);
 
-    return await this.prisma.product.delete({
-      where: { id: id }
-    })
+    return await this.productRepository.delete({ id })
   }
 
   async remove(id: number) {
     await this.findOne(id);
 
-    const product = await this.prisma.product.update({
-      where: { id : id },
-      data: { available: false }
-    })
+    await this.productRepository.update(
+      { id },
+      { available: false },
+    );
 
-    return product;
+    return this.productRepository.findOne({ where: { id } });
   }
 
-  async validateProducts(ids: number[]){
+  async validateProducts(ids: number[]) {
     ids = Array.from(new Set(ids));
 
-    const products = await this.prisma.product.findMany({
-      where: {
-        id: {
-          in: ids
-        },
-        available: true
-      }
+    const products = await this.productRepository.find({
+      where: { id: In(ids), available: true }
     });
 
-    if(products.length != ids.length){
+    if (products.length != ids.length) {
       throw new RpcException({
-        message: `Some products were not found`, 
+        message: `Some products were not found`,
         statusCode: HttpStatus.NOT_FOUND,
         error: "Not found"
       })

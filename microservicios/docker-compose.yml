@@ -1,0 +1,82 @@
+services:
+  nats-server:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+  #GATEWAY
+  client-gateway:
+    build: ./client-gateway
+    ports:
+      - "3000:3000"
+    command: npm run start:prod
+    environment:
+    - PORT=3000
+    - NATS_SERVERS=nats://nats-server:4222
+    - PRODUCTS_MICROSERVICE_HOST=products-ms
+    - PRODUCTS_MICROSERVICE_PORT=3001
+  
+    - ORDERS_MICROSERVICE_HOST=orders-ms
+    - ORDERS_MICROSERVICE_PORT=3002
+    depends_on:
+      - nats-server
+
+  # PRODUCTS DATABASE
+  products-db:
+    image: postgres:16.2
+    container_name: products_database
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=123456
+      - POSTGRES_DB=productsdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./postgres-products:/var/lib/postgresql/data
+
+  # PRODUCTS MS
+  products-ms:
+    build: ./products-ms
+    container_name: products_ms
+    command: npm run start:dev
+    environment:
+      - PORT=3001
+      - DB_HOST=products-db
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=123456
+      - DB_NAME=productsdb
+      - NATS_SERVERS=nats://nats-server:4222
+    depends_on:
+      - products-db
+      - nats-server
+
+  #ORDERS
+  orders-ms:
+    build: ./orders-ms
+    command: npm run start:prod
+    environment:
+      - PORT=3002
+      - NATS_SERVERS=nats://nats-server:4222
+      - DB_HOST=orders-db
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=123456
+      - DB_NAME=ordersdb
+    depends_on:
+      - orders-db
+      - nats-server
+
+  orders-db:
+    container_name: orders_database
+    image: postgres:16.2
+    restart: always
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=123456
+      - POSTGRES_DB=ordersdb
